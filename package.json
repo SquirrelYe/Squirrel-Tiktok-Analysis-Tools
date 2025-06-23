@@ -1,0 +1,27 @@
+{
+  "name": "squirrel-tiktok-analysis-tools",
+  "version": "1.0.0",
+  "description": "",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "prettier": "prettier --write \"src/**/*.ts\"",
+    "build:tsc": "tsc",
+    "build:douyin_live_replay_analyzer": "esbuild src/douyin_live_replay_analyzer.ts --bundle --outfile=app/douyin_live_replay_analyzer.js",
+    "build:douyin_live_formatter": "esbuild src/douyin_live_formatter.ts --bundle --outfile=app/douyin_live_formatter.js",
+    "build:douyin_comment_crawler": "esbuild src/douyin_comment_crawler.ts --bundle --outfile=app/douyin_comment_crawler.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "xlsx": "^0.18.5",
+    "file-saver": "2.0.5"
+  },
+  "devDependencies": {
+    "@types/file-saver": "^2.0.1",
+    "esbuild": "^0.25.5",
+    "typescript": "^5.8.3"
+  }
+}

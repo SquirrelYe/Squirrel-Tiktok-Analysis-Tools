@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "outDir": "app",
+    "outFile": "app/douyin_live_replay_analyzer.js",
+    "baseUrl": ".",
+    "module": "system",
+    "target": "esnext",
+    "types": [],
+    "allowJs": true,
+    "checkJs": false,
+    "sourceMap": true,
+    "declaration": true,
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "removeComments": false
+  },
+  "include": ["src"],
+  "exclude": ["node_modules", "app", ".idea", "runtime"]
+}
