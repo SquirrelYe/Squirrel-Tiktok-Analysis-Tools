@@ -451,9 +451,6 @@ import { exportMultipleSheetsToExcel } from './utils/xlsx';
     };
 
     XMLHttpRequest.prototype.send = function (body) {
-      const storedRequestMap = GM_getValue('xhrRequests', {});
-      const storedResponseMap = GM_getValue('xhrResponses', {});
-
       let isFlagged = false;
       const requestData = {
         type: '',
@@ -501,6 +498,8 @@ import { exportMultipleSheetsToExcel } from './utils/xlsx';
           // 打印请求的URL、方法、请求体、请求头等信息
           console.log('拦截到请求:', requestData);
           // 存储请求
+          const storedRequestMap = GM_getValue('xhrRequests', {});
+          const storedResponseMap = GM_getValue('xhrResponses', {});
           storedRequestMap[requestData.type] = requestData;
           GM_setValue('xhrRequests', storedRequestMap);
           setOperationLog(`存储请求数据：${requestData.type}，${JSON.stringify(Object.keys(storedRequestMap))}`); // prettier-ignore
