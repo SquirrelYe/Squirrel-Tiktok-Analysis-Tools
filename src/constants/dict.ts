@@ -8,7 +8,8 @@ export const TabMap = {
   PK: 'Tab_PK',
   AudienceAll: 'Tab_AudienceAll',
   NewAudience: 'Tab_NewAudience',
-  Guest: 'Tab_Guest'
+  Guest: 'Tab_Guest',
+  AudienceAllGetUserCard: 'Tab_AudienceAllGetUserCard'
 };
 
 // battleID	watchPV	matchUserSource	teamDetail	pkScore	channelID	startTime	endTime	commentPV	followUserPV	feedback	feedbackTag

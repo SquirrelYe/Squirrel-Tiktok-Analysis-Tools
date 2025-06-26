@@ -14,8 +14,11 @@
 
 import { downloadTextFile } from './utils/file';
 import { wait } from './utils/tool';
-import { TabMap, DictDataPK, DictDataAudienceAll, DictDataNewAudience } from './constants/dict';
 import { exportMultipleSheetsToExcel } from './utils/xlsx';
+import { triggerMouseEnterWithDelay } from './utils/element';
+import { parseHTML, getElementText } from './utils/dom';
+import { IndexedDBUtil } from './utils/indexdb';
+import { TabMap, DictDataPK, DictDataAudienceAll, DictDataNewAudience } from './constants/dict';
 
 (function () {
   'use strict';
@@ -30,12 +33,27 @@ import { exportMultipleSheetsToExcel } from './utils/xlsx';
   const elNickName = "#root > div > div:nth-child(2) > div > div > div.mb-4.flex.justify-between > div > div > div.mb-2\\.5.max-w-\\[500px\\].truncate.text-6.font-bold.text-text-0 > span > span"; // prettier-ignore
   const elStartTime = "#root > div > div:nth-child(2) > div > div > div.mb-4.flex.justify-between > div > div > div.flex.gap-4 > div:nth-child(3) > span > span"; // prettier-ignore
   const elEndTime = "#root > div > div:nth-child(2) > div > div > div.mb-4.flex.justify-between > div > div > div.flex.gap-4 > div:nth-child(4) > span > span"; // prettier-ignore
+  const elTabAudienceAllFirstElement = "#root > div > div.mb-4.flex.gap-4 > div.w-\\[400px\\].grow > div.mb-4.rounded-medium.p-4.\\!mb-0.bg-white > div:nth-child(2) > div.tableWrapper--OLQls > div > div > div > div > div > div.semi2-table-container > div > table > tbody > tr:nth-child(1) > td:nth-child(2) > div"; // prettier-ignore
 
   // 直播场次数据的Tab选择器
   const elReplayTabPk = '#semiTabpk'; // PK榜
   const elReplayTabAudienceAll = '#semiTabaudienceAll'; // 观众总榜
   const elReplayTabNewAudience = '#semiTabnewAudience'; // 新付费观众榜
   const elReplayTabGuest = '#semiTabguest'; // 连线嘉宾榜
+
+  // 缓存数据Key值
+  const keyXhrRequests = 'xhrRequests'; // 缓存请求数据
+  const keyXhrResponses = 'xhrResponses'; // 缓存响应数据
+
+  // IndexedDB相关
+  const indexdbVersion = 20250626; // IndexedDB版本号
+  const indexdbDbName = 'DBDouyinReplayData'; // IndexedDB数据库名称
+  const indexdbStoreReplayDataName = 'StoreReplayData'; // IndexedDB StoreReplayData表名称
+  const indexdbStoreUserIDMapSecUidAndUniqueIdName = 'StoreUserIDMapSecUidAndUniqueId'; // IndexedDB StoreUserIDMapSecUidAndUniqueIdName表名称
+  const indexdbInstance = new IndexedDBUtil(indexdbDbName, indexdbVersion, {
+    [indexdbStoreReplayDataName]: { keyPath: 'id' },
+    [indexdbStoreUserIDMapSecUidAndUniqueIdName]: { keyPath: 'userID' }
+  });
 
   // 每页获取的直播场次数据条数
   const pageSizeAudienceAll = 100;
@@ -45,15 +63,17 @@ import { exportMultipleSheetsToExcel } from './utils/xlsx';
   const urlTabAudienceAll = "https://union.bytedance.com/ark/api/data/pugna_component/data/v2/anchor/live/room_rank_with_filter"; // prettier-ignore
   const urlTabNewAudience = "https://union.bytedance.com/ark/api/data/pugna_component/data/v2/room/detail/new_pay_rank"; // prettier-ignore
   const urlTabGuest = "https://union.bytedance.com/ark/api/data/pugna_component/data/v2/anchor/live/room_rank_with_filter"; // prettier-ignore
+  const urlTabAudienceAllGetUserCard = 'https://union.bytedance.com/ark/api/broker/follow/get_user_card'; // pretty-ignore
 
   // ------------------------------ 定时器 ------------------------------
 
-  var timerCheckDom = null;
-  var timerRuntime = null;
+  let timerCheckDom = null;
+  let timerRuntime = null;
 
   // 运行状态
-  var status = 'Running'; // Running, Error
-  var runtimeTime = null;
+  let status = 'Running'; // Running, Error
+  let runtimeTime = null;
+  let runtimeLogs = '日志区域：\n'; // 运行日志
 
   // 运行状态相关的DOM元素
   const statusText = document.createElement('p');
@@ -78,7 +98,8 @@ import { exportMultipleSheetsToExcel } from './utils/xlsx';
 
   // 设置执行状态文本
   const setOperationLog = (text: string) => {
-    logContainer.innerText += `● ${new Date().toLocaleTimeString()} - ${text}\n`;
+    runtimeLogs += `● ${new Date().toLocaleTimeString()} - ${text}\n`;
+    logContainer.innerText = runtimeLogs;
     logContainer.scrollTop = logContainer.scrollHeight; // 滚动到底部
   };
 
@@ -107,10 +128,10 @@ import { exportMultipleSheetsToExcel } from './utils/xlsx';
   // ------------------------------ 下载操作 ------------------------------
 
   // 下载直播场次数据
-  const downloadReplays = async (isConfirm?: boolean) => {
+  const downloadReplays = async () => {
     setOperationLog('开始下载直播场次数据，请稍等...');
 
-    const replays = GM_getValue('xhrResponses', {});
+    const replays = GM_getValue(keyXhrResponses, {});
     const nickname = document.querySelector(elNickName)?.textContent || '未知主播';
     const startTime = document.querySelector(elStartTime)?.textContent || '未知开始时间';
     const endTime = document.querySelector(elEndTime)?.textContent || '未知结束时间';
@@ -152,22 +173,23 @@ import { exportMultipleSheetsToExcel } from './utils/xlsx';
   // ------------------------------ 收集请求操作 ------------------------------
 
   // 收集请求数据
-  const collectRequests = async (isConfirm: boolean = true) => {
+  const collectRequests = async () => {
     setOperationLog("即将开始收集请求数据，页面会自动进行跳转以获取请求数据，请不要进行其他操作，点击确定开始"); // prettier-ignore
     if(!confirm("即将开始收集请求数据，页面会自动进行跳转以获取请求数据，请不要进行其他操作，点击确定开始")) return; //  prettier-ignore
 
     setOperationLog('开始收集请求数据，请稍等...');
 
+    changeTab(elReplayTabNewAudience);
+    await wait(2000); // 等待2秒钟以确保切换完成
     changeTab(elReplayTabPk);
+    await wait(2000); // 等待2秒钟以确保切换完成
+    changeTab(elReplayTabGuest);
     await wait(2000); // 等待2秒钟以确保切换完成
     changeTab(elReplayTabAudienceAll);
     await wait(2000); // 等待2秒钟以确保切换完成
     changeTab(elReplayTabNewAudience);
     await wait(2000); // 等待2秒钟以确保切换完成
-    changeTab(elReplayTabGuest);
-    await wait(2000); // 等待2秒钟以确保切换完成
-
-    changeTab(elReplayTabPk);
+    changeTab(elReplayTabAudienceAll);
     await wait(5000); // 等待5秒钟以确保切换完成
 
     setOperationLog('请求数据收集完成，现在可以执行数据采集操作了');
@@ -177,9 +199,9 @@ import { exportMultipleSheetsToExcel } from './utils/xlsx';
   // ------------------------------ 采集请求操作 ------------------------------
 
   // ❶ 采集 - PK榜
-  const startExportPK = async (isConfirm: boolean = true) => {
-    const storedRequestMap = GM_getValue('xhrRequests', {});
-    const storedResponseMap = GM_getValue('xhrResponses', {});
+  const startExportPK = async () => {
+    const storedRequestMap = GM_getValue(keyXhrRequests, {});
+    const storedResponseMap = GM_getValue(keyXhrResponses, {});
     console.log('Stored requests:', storedRequestMap);
     console.log('Stored responses:', storedResponseMap);
 
@@ -211,7 +233,7 @@ import { exportMultipleSheetsToExcel } from './utils/xlsx';
       setOperationLog(`捕获到PK榜数据，总数: ${pkData.data?.length || 0}`); // prettier-ignore
       setOperationLog(`捕获到PK榜数据，已存储到本地存储，数据内容: ${JSON.stringify(pkData)}`); // prettier-ignore
       storedResponseMap[TabMap.PK] = pkData;
-      GM_setValue('xhrResponses', storedResponseMap);
+      GM_setValue(keyXhrResponses, storedResponseMap);
 
       setOperationLog('PK榜数据采集成功');
       alert('PK榜数据采集成功，请查看控制台输出');
@@ -219,9 +241,9 @@ import { exportMultipleSheetsToExcel } from './utils/xlsx';
   };
 
   // ❷ 采集 - 观众总榜
-  const startExportAudienceAll = async (isConfirm: boolean = true) => {
-    const storedRequestMap = GM_getValue('xhrRequests', {});
-    const storedResponseMap = GM_getValue('xhrResponses', {});
+  const startExportAudienceAll = async () => {
+    const storedRequestMap = GM_getValue(keyXhrRequests, {});
+    const storedResponseMap = GM_getValue(keyXhrResponses, {});
     console.log('Stored requests:', storedRequestMap);
     console.log('Stored responses:', storedResponseMap);
 
@@ -290,7 +312,7 @@ import { exportMultipleSheetsToExcel } from './utils/xlsx';
       // 保存数据到本地存储
       setOperationLog(`捕获到观众总榜数据，已存储到本地存储，数据内容: ${JSON.stringify(responseList)}`); // prettier-ignore
       storedResponseMap[TabMap.AudienceAll] = { data: responseList };
-      GM_setValue('xhrResponses', storedResponseMap);
+      GM_setValue(keyXhrResponses, storedResponseMap);
 
       setOperationLog('观众总榜数据采集成功');
       alert('观众总榜数据采集成功，请查看控制台输出');
@@ -298,9 +320,9 @@ import { exportMultipleSheetsToExcel } from './utils/xlsx';
   };
 
   //  ❸ 采集 - 新观众付费榜
-  const startExportNewAudience = async (isConfirm: boolean = true) => {
-    const storedRequestMap = GM_getValue('xhrRequests', {});
-    const storedResponseMap = GM_getValue('xhrResponses', {});
+  const startExportNewAudience = async () => {
+    const storedRequestMap = GM_getValue(keyXhrRequests, {});
+    const storedResponseMap = GM_getValue(keyXhrResponses, {});
     console.log('Stored requests:', storedRequestMap);
     console.log('Stored responses:', storedResponseMap);
 
@@ -369,7 +391,7 @@ import { exportMultipleSheetsToExcel } from './utils/xlsx';
       // 保存数据到本地存储
       setOperationLog(`捕获到新观众付费榜数据，已存储到本地存储，数据内容: ${JSON.stringify(responseList)}`); // prettier-ignore
       storedResponseMap[TabMap.NewAudience] = { data: responseList };
-      GM_setValue('xhrResponses', storedResponseMap);
+      GM_setValue(keyXhrResponses, storedResponseMap);
 
       setOperationLog('新观众付费榜数据采集成功');
       alert('新观众付费榜数据采集成功，请查看控制台输出');
@@ -377,7 +399,7 @@ import { exportMultipleSheetsToExcel } from './utils/xlsx';
   };
 
   // ❹ 采集 - 连线嘉宾榜
-  const startExportGuest = async (isConfirm: boolean = true) => {
+  const startExportGuest = async () => {
     // 暂时不支持
     setOperationLog('连线嘉宾榜数据导出暂不支持');
     alert('连线嘉宾榜数据导出暂不支持');
@@ -391,26 +413,135 @@ import { exportMultipleSheetsToExcel } from './utils/xlsx';
     setOperationLog("即将开始一键采集全部数据，操作可能需要一些时间，请不要进行其他操作..."); // prettier-ignore
 
     setOperationLog('开始执行收集请求数据操作，请稍等...');
-    await collectRequests(false);
+    await collectRequests();
     setOperationLog('收集请求数据操作完成，正在准备采集数据');
 
     setOperationLog('开始采集PK榜数据，请稍等...');
     setOperationLog('开始采集PK榜数据，请稍等...');
-    await startExportPK(false);
+    await startExportPK();
     setOperationLog('PK榜数据采集完成，正在采集观众总榜数据');
-    await startExportAudienceAll(false);
+    await startExportAudienceAll();
     setOperationLog('观众总榜数据采集完成，正在采集新观众付费榜数据');
-    await startExportNewAudience(false);
+    await startExportNewAudience();
     // setOperationLog('新观众付费榜数据采集完成，正在采集连线嘉宾榜数据');
     // await startExportGuest();
     setOperationLog('所有数据采集操作已完成，正在准备下载数据');
 
     setOperationLog('即将开始下载数据，请稍等...');
-    await downloadReplays(false);
+    await downloadReplays();
     setOperationLog('数据下载完成，请查看下载的文件');
 
     alert('数据下载完成，请查看下载的文件');
   };
+
+  // ❻ 采集 - 采集抖音号等个人信息
+  const collectAudienceAllSecUidAndUniqueId = async () => {
+    setOperationLog('开始切换到观众总榜Tab，请稍等...');
+
+    // 切换到观众总榜Tab
+    changeTab(elReplayTabAudienceAll);
+    await wait(2000); // 等待2秒钟以确保切换完成
+
+    setOperationLog('开始采集观众总榜Tab中第一个粉丝的SecUid和UniqueId，请稍等...');
+
+    // 选择第一个观众总榜元素，执行MouseEnter事件
+    const firstElement = document.querySelector(elTabAudienceAllFirstElement) as HTMLElement;
+    await triggerMouseEnterWithDelay(firstElement, 2000);
+
+    // 判断是否存在针对AudienceAllGetUserCard的请求
+    const storedRequestMap = GM_getValue(keyXhrRequests, {});
+    if (!storedRequestMap[TabMap.AudienceAllGetUserCard]) {
+      setOperationLog('未捕获到观众总榜获取用户卡片请求，请重新执行请求观众总榜抖音号的操作');
+      alert('未捕获到观众总榜获取用户卡片请求，请重新执行请求观众总榜抖音号的操作');
+      return;
+    }
+
+    setOperationLog(`已采集到第一个观众总榜元素的卡片请求： ${JSON.stringify(storedRequestMap[TabMap.AudienceAllGetUserCard])}`); // prettier-ignore
+    setOperationLog('开始回放观众总榜获取用户卡片请求，请稍等...');
+
+    // 构造回放请求，来获取每一个观众的SecUid和UniqueId
+    const requestBase = storedRequestMap[TabMap.AudienceAllGetUserCard];
+
+    // 循环观众总榜，获取数据
+    const xhrResponses = GM_getValue(keyXhrResponses, {});
+    if (!xhrResponses[TabMap.AudienceAll] || !xhrResponses[TabMap.AudienceAll]?.data || (xhrResponses[TabMap.AudienceAll]?.data || []).length === 0) {
+      setOperationLog('未捕获到观众总榜数据，请先进行收集请求数据操作');
+      alert('未捕获到观众总榜数据，请先进行收集请求数据操作');
+      return;
+    }
+
+    const audienceAllData = xhrResponses[TabMap.AudienceAll].data || [];
+    setOperationLog(`观众总榜数据总数: ${audienceAllData.length}，即将进行SecUid和UniqueId的采集，请稍等...`); // prettier-ignore
+
+    // 遍历观众总榜数据，获取SecUid和UniqueId
+    const total = audienceAllData.length;
+    for (const [item, index] of audienceAllData.entries()) {
+      const userID = item['userID'] || '';
+      if (!userID) {
+        setOperationLog('【抖音号抓取】未找到用户ID，跳过当前用户');
+        continue;
+      }
+
+      // 判断IndexedDB中是否已存在该用户的SecUid和UniqueId
+      const exists = await indexdbInstance.hasItem(indexdbStoreUserIDMapSecUidAndUniqueIdName, userID);
+      if (exists) {
+        setOperationLog(`【抖音号抓取】用户ID: ${userID} 的SecUid和UniqueId已存在于IndexedDB中，跳过当前用户`);
+        continue;
+      }
+
+      // 修改requestBase中的url字段的&audience_id字段信息
+      const url = new URL(requestBase.url);
+      url.searchParams.set('audience_id', userID);
+      requestBase.url = url.toString();
+
+      const rsp = await replayRequest(requestBase);
+      const responseData = JSON.parse(rsp.body)['data'] || {};
+      const baseUrl = responseData['user_base_info']['person_home_page_url'] || '';
+      setOperationLog(`【抖音号抓取】成功回放观众总榜获取用户卡片请求，获取到的用户主页URL: ${baseUrl}`); // prettier-ignore
+
+      // 请求baseUrl来获取SecUid和UniqueId
+      setOperationLog('【抖音号抓取】开始请求用户主页URL以获取SecUid和UniqueId，请稍等...');
+      const secUidAndUniqueIdRsp = await getRequest(baseUrl);
+      const domHtml = secUidAndUniqueIdRsp['body'];
+
+      setOperationLog(`【抖音号抓取】成功获取用户主页HTML内容，长度为: ${domHtml.length}, 即将进行HTML代码解析，请稍等...`); // prettier-ignore
+
+      // 解析HTML内容
+      const doc = parseHTML(domHtml);
+      const description = getElementText(doc, '#user_detail_element > div > div.SDJA4Oo6.RsRFV44h.tA_RqgBC.Z6Fyt4lf > div.zI865BLc > p');
+      setOperationLog(`【抖音号抓取】成功获取用户主页的描述信息: ${description}`); // 举例：“抖音号：F0098.IP属地：浙江”
+
+      // 举例：https://www.douyin.com/user/MS4wLjABAAAAXCaU01Ka7KaaBf2td0_qLkEIyluxR7xe98XAguwd3JI
+      const secUid = baseUrl.split('/')[4] || ''; // 从URL中提取SecUid
+      const uniqueId = description.match(/抖音号：(\w+)/)?.[1] || ''; // 从描述中提取UniqueId
+      const location = description.match(/IP属地：([\u4e00-\u9fa5]+)/)?.[1] || ''; // 从描述中提取IP属地
+      setOperationLog(`【抖音号抓取】成功提取SecUid: ${secUid}`); // prettier-ignore
+      setOperationLog(`【抖音号抓取】成功提取UniqueId: ${uniqueId}, IP属地: ${location}`); // prettier-ignore
+
+      // 存储数据库
+      await indexdbInstance
+        .upsertItem(indexdbStoreUserIDMapSecUidAndUniqueIdName, {
+          userID: userID,
+          secUid: secUid,
+          uniqueId: uniqueId,
+          location: location,
+          timestamp: new Date().toISOString()
+        })
+        .then(() => {
+          setOperationLog(`【抖音号抓取】成功存储SecUid和UniqueId到IndexedDB，SecUid: ${secUid}, UniqueId: ${uniqueId}`); // prettier-ignore
+        })
+        .catch(error => {
+          setOperationLog(`【抖音号抓取】存储SecUid和UniqueId到IndexedDB失败: ${error.message}`); // prettier-ignore
+        });
+
+      setOperationLog(`${index+1}/${total}【抖音号抓取】用户ID: ${userID} 的SecUid和UniqueId已成功存储到IndexedDB中`); // prettier-ignore
+
+      // 等待1秒钟以避免请求过快
+      await wait(1500);
+    }
+  };
+
+  // ------------------------------ 调试操作 ------------------------------
 
   // 导出日志内容到文本文件
   const startDebug = () => {
@@ -483,6 +614,13 @@ import { exportMultipleSheetsToExcel } from './utils/xlsx';
       //   requestData.type = TabMap.Guest;
       //   setOperationLog(`拦截到请求：连线嘉宾榜请求，${JSON.stringify(requestData)}`); // prettier-ignore
       // }
+      else if (this.__url.includes(urlTabAudienceAllGetUserCard)) {
+        isFlagged = true;
+        requestData.type = TabMap.AudienceAllGetUserCard;
+        setOperationLog(`拦截到请求：观众总榜获取用户卡片请求，${JSON.stringify(requestData)}`); // prettier-ignore
+      } else {
+        // 如果不是我们关心的请求，则不进行处理
+      }
 
       // 如果是PK榜请求，则打印请求和响应
       if (isFlagged) {
@@ -498,10 +636,10 @@ import { exportMultipleSheetsToExcel } from './utils/xlsx';
           // 打印请求的URL、方法、请求体、请求头等信息
           console.log('拦截到请求:', requestData);
           // 存储请求
-          const storedRequestMap = GM_getValue('xhrRequests', {});
-          const storedResponseMap = GM_getValue('xhrResponses', {});
+          const storedRequestMap = GM_getValue(keyXhrRequests, {});
+          const storedResponseMap = GM_getValue(keyXhrResponses, {});
           storedRequestMap[requestData.type] = requestData;
-          GM_setValue('xhrRequests', storedRequestMap);
+          GM_setValue(keyXhrRequests, storedRequestMap);
           setOperationLog(`存储请求数据：${requestData.type}，${JSON.stringify(Object.keys(storedRequestMap))}`); // prettier-ignore
         });
       }
@@ -511,7 +649,7 @@ import { exportMultipleSheetsToExcel } from './utils/xlsx';
   };
 
   // 发送回放请求
-  const replayRequest = (request: { type: any; method: any; url: any; headers: any; body: any }): Promise<any> => {
+  const replayRequest = (request: any): Promise<any> => {
     setOperationLog(`开始回放请求: ${request.type}，${JSON.stringify(request)}`); // prettier-ignore
     return new Promise((resolve, reject) => {
       GM_xmlhttpRequest({
@@ -520,7 +658,7 @@ import { exportMultipleSheetsToExcel } from './utils/xlsx';
         timeout: 10000, // 设置超时时间为10秒
         headers: request.headers,
         data: request.body,
-        onload: function (response: { status: any; statusText: any; responseHeaders: any; responseText: any }) {
+        onload: function (response: any) {
           // 响应数据在response.responseText中，如果是二进制数据，可能需要使用response.response
           resolve({
             status: response.status,
@@ -536,6 +674,35 @@ import { exportMultipleSheetsToExcel } from './utils/xlsx';
         },
         ontimeout: function () {
           setOperationLog(`回放请求超时: ${request.type}`); // prettier-ignore
+          reject(new Error('Request timed out'));
+        }
+      });
+    });
+  };
+
+  // 发起Get请求
+  const getRequest = (url: string): Promise<any> => {
+    setOperationLog(`开始发起GET请求: ${url}`);
+    return new Promise((resolve, reject) => {
+      GM_xmlhttpRequest({
+        method: 'GET',
+        url: url,
+        timeout: 10000, // 设置超时时间为10秒
+        onload: function (response: any) {
+          resolve({
+            status: response.status,
+            statusText: response.statusText,
+            headers: response.responseHeaders,
+            body: response.responseText,
+            response: response // 完整的响应对象
+          });
+        },
+        onerror: function (error: { message: any }) {
+          setOperationLog(`GET请求失败，错误信息: ${error.message}`);
+          reject(error);
+        },
+        ontimeout: function () {
+          setOperationLog(`GET请求超时`);
           reject(new Error('Request timed out'));
         }
       });
@@ -602,6 +769,7 @@ import { exportMultipleSheetsToExcel } from './utils/xlsx';
     const exportNewAudienceButton = createButton("⛐ 采集 - 新观众付费榜", startExportNewAudience); // prettier-ignore
     const exportGuestButton = createButton("⛐ 采集 - 连线嘉宾榜", startExportGuest); // prettier-ignore
     const exportAllButton = createButton("⛐ 一键导出全部数据（不太稳定）", startExportAllField); // prettier-ignore
+    const collectAudienceAllSecUidAndUniqueIdButton = createButton("⛐ 采集 - 观众总榜抖音号", collectAudienceAllSecUidAndUniqueId); // prettier-ignore
     const downloadButton = createButton("⎋ 下载直播场次导出数据", downloadReplays); // prettier-ignore
     const debugButton = createButton("⚙️ 调试日志", startDebug); // prettier-ignore
 
@@ -611,6 +779,7 @@ import { exportMultipleSheetsToExcel } from './utils/xlsx';
     exportNewAudienceButton.style = "background-color: #4CAF50; color: white; margin-top: 5px; width: 300px; font-size: 16px; cursor: pointer"; // prettier-ignore
     exportGuestButton.style = "background-color: #909399; color: white; margin-top: 5px; width: 300px; font-size: 16px; cursor: pointer"; // prettier-ignore
     exportAllButton.style = "background-color: #909399; color: white; margin-top: 5px; width: 300px; font-size: 16px; cursor: pointer"; // prettier-ignore
+    collectAudienceAllSecUidAndUniqueIdButton.style = "background-color: #008CBA; color: white; margin-top: 5px; width: 300px; font-size: 16px; cursor: pointer"; // prettier-ignore
     downloadButton.style = "background-color: #008CBA; color: white; margin-top: 5px; width: 300px; font-size: 16px; cursor: pointer"; // prettier-ignore
     debugButton.style = "background-color: #E6A23C; color: white; margin-top: 5px; width: 300px; font-size: 16px; cursor: pointer"; // prettier-ignore
 
@@ -624,6 +793,7 @@ import { exportMultipleSheetsToExcel } from './utils/xlsx';
     operationLeft.appendChild(exportNewAudienceButton);
     operationLeft.appendChild(exportGuestButton);
     operationLeft.appendChild(exportAllButton);
+    operationLeft.appendChild(collectAudienceAllSecUidAndUniqueIdButton);
     operationLeft.appendChild(downloadButton);
 
     // operationLeft.appendChild(resumeButton);
@@ -645,7 +815,6 @@ import { exportMultipleSheetsToExcel } from './utils/xlsx';
 
     logContainer.id = 'x-log-container';
     logContainer.style = "margin: 0 0 0 20px; width: 100%; height: 100%; padding: 10px; font-size: 14px; background-color: #f0f0f0; border-radius: 5px; overflow-y: auto;"; // prettier-ignore
-    logContainer.innerText = '日志区域：\n';
 
     operationRight.appendChild(logContainer);
 
@@ -659,8 +828,8 @@ import { exportMultipleSheetsToExcel } from './utils/xlsx';
 
     const showContainer = document.createElement("div"); // prettier-ignore
 
-    const showButton = createButton("+显示操作区域", () => operationContainer.style.visibility = "visible"); // prettier-ignore
-    const hideButton = createButton("-隐藏操作区域", () => operationContainer.style.visibility = "hidden"); // prettier-ignore
+    const showButton = createButton("+ 显示操作区域", () => operationContainer.style.visibility = "visible"); // prettier-ignore
+    const hideButton = createButton("- 隐藏操作区域", () => operationContainer.style.visibility = "hidden"); // prettier-ignore
 
     //  设置显示和隐藏按钮的样式
     showContainer.style.position = "fixed"; // prettier-ignore
@@ -690,20 +859,32 @@ import { exportMultipleSheetsToExcel } from './utils/xlsx';
   // 清理缓存
   const clearCache = () => {
     setOperationLog('清理缓存...');
-    GM_setValue('xhrRequests', {});
-    GM_setValue('xhrResponses', {});
+    GM_setValue(keyXhrRequests, {});
+    GM_setValue(keyXhrResponses, {});
     localStorage.removeItem('x-replays');
     localStorage.removeItem('x-replays-player-map');
     setOperationLog('缓存清理完成');
   };
 
   // 主函数
-  const main = () => {
+  const main = async () => {
     try {
       interceptXHR();
-      clearCache();
+      // clearCache();
       clearDisplay();
       createDisplay();
+
+      await indexdbInstance.open();
+      await indexdbInstance.upsertItem(indexdbStoreReplayDataName, {
+        id: 'xxx',
+        timestamp: new Date().toISOString(),
+        message: '脚本初始化完成，开始运行'
+      });
+      await indexdbInstance.upsertItem(indexdbStoreUserIDMapSecUidAndUniqueIdName, {
+        userID: 'xxx',
+        timestamp: new Date().toISOString(),
+        message: '脚本初始化完成，开始运行'
+      });
     } catch (error) {
       setOperationLog(`主函数执行出错: ${error.message}`);
     }
@@ -730,7 +911,7 @@ import { exportMultipleSheetsToExcel } from './utils/xlsx';
       isReplayContainerPrepared = false;
       setOperationLog('DOM未加载，继续等待');
     }
-  }, 500);
+  }, 1000);
 
   //  运行时长计时器
   timerRuntime = setInterval(() => {
