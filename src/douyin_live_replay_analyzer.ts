@@ -18,7 +18,7 @@ import { exportMultipleSheetsToExcel } from './utils/xlsx';
 import { triggerMouseEnterWithDelay } from './utils/element';
 import { parseHTML, getElementText } from './utils/dom';
 import { IndexedDBUtil } from './utils/indexdb';
-import { TabMap, DictDataPK, DictDataAudienceAll, DictDataNewAudience } from './constants/dict';
+import { TabMap, DictDataPK, DictDataAudienceAll, DictDataNewAudience, DictDataAudienceAllGetUserCardInfo } from './constants/dict';
 
 (function () {
   'use strict';
@@ -59,11 +59,12 @@ import { TabMap, DictDataPK, DictDataAudienceAll, DictDataNewAudience } from './
   const pageSizeAudienceAll = 100;
 
   // 直播场次数据的请求URL
-  const urlTabPk = "https://union.bytedance.com/ark/api/data/pugna_component/data/v2/faction/room_analysis/pk_data"; // prettier-ignore
-  const urlTabAudienceAll = "https://union.bytedance.com/ark/api/data/pugna_component/data/v2/anchor/live/room_rank_with_filter"; // prettier-ignore
-  const urlTabNewAudience = "https://union.bytedance.com/ark/api/data/pugna_component/data/v2/room/detail/new_pay_rank"; // prettier-ignore
-  const urlTabGuest = "https://union.bytedance.com/ark/api/data/pugna_component/data/v2/anchor/live/room_rank_with_filter"; // prettier-ignore
-  const urlTabAudienceAllGetUserCard = 'https://union.bytedance.com/ark/api/broker/follow/get_user_card'; // pretty-ignore
+  const urlTabPk = 'https://union.bytedance.com/ark/api/data/pugna_component/data/v2/faction/room_analysis/pk_data';
+  const urlTabAudienceAll = 'https://union.bytedance.com/ark/api/data/pugna_component/data/v2/anchor/live/room_rank_with_filter';
+  const urlTabNewAudience = 'https://union.bytedance.com/ark/api/data/pugna_component/data/v2/room/detail/new_pay_rank';
+  const urlTabGuest = 'https://union.bytedance.com/ark/api/data/pugna_component/data/v2/anchor/live/room_rank_with_filter';
+  const urlTabAudienceAllGetUserCard = 'https://union.bytedance.com/ark/api/broker/follow/get_user_card';
+  const urlGetCommonInfo = 'https://union.bytedance.com/ark/api/data/pugna_component/data/v2/anchor_live/room_base_stats'; // 获取直播间基本信息
 
   // ------------------------------ 定时器 ------------------------------
 
@@ -97,8 +98,8 @@ import { TabMap, DictDataPK, DictDataAudienceAll, DictDataNewAudience } from './
   };
 
   // 设置执行状态文本
-  const setOperationLog = (text: string) => {
-    runtimeLogs += `● ${new Date().toLocaleTimeString()} - ${text}\n`;
+  const setOperationLog = (text: string, padStart: string = '', padEnd: string = '') => {
+    runtimeLogs += `${padStart}● ${new Date().toLocaleTimeString()} - ${text}${padEnd}\n`;
     logContainer.innerText = runtimeLogs;
     logContainer.scrollTop = logContainer.scrollHeight; // 滚动到底部
   };
@@ -117,12 +118,16 @@ import { TabMap, DictDataPK, DictDataAudienceAll, DictDataNewAudience } from './
   };
 
   // 翻译对象的key
-  const translateObjectKeys = (obj: any, translationMap: Record<string, string>) => {
-    return Object.keys(obj).reduce((acc, key) => {
-      const translatedKey = translationMap[key] || key; // 使用翻译映射或原始键
-      acc[translatedKey] = obj[key];
-      return acc;
-    }, {});
+  const translateObjectKeys = (objArr: Array<any>, translationMap: Record<string, string>, uniqueIdMap: Record<string, any>, mappingKey: string = 'userID') => {
+    return objArr.map(obj => {
+      const item = Object.keys(obj).reduce((acc, key) => {
+        const translatedKey = translationMap[key] || key; // 使用翻译映射或原始键
+        acc[translatedKey] = obj[key];
+        return acc;
+      }, {});
+      item['唯一ID（抖音号）'] = uniqueIdMap[obj[mappingKey]]?.['uniqueId'] || '未知抖音号'; // 添加唯一ID（抖音号）
+      return item;
+    });
   };
 
   // ------------------------------ 下载操作 ------------------------------
@@ -131,10 +136,23 @@ import { TabMap, DictDataPK, DictDataAudienceAll, DictDataNewAudience } from './
   const downloadReplays = async () => {
     setOperationLog('开始下载直播场次数据，请稍等...');
 
-    const replays = GM_getValue(keyXhrResponses, {});
     const nickname = document.querySelector(elNickName)?.textContent || '未知主播';
     const startTime = document.querySelector(elStartTime)?.textContent || '未知开始时间';
     const endTime = document.querySelector(elEndTime)?.textContent || '未知结束时间';
+
+    // 获取数据
+    const xhrResponses = GM_getValue(keyXhrResponses, {});
+    const indexdbResponses = (await indexdbInstance.getAllItems(indexdbStoreUserIDMapSecUidAndUniqueIdName)) || [];
+    const indexdbResponseMap = indexdbResponses.reduce((acc, item) => {
+      acc[item.userID] = {
+        nickname: item.nickname || '未知昵称',
+        secUid: item.secUid || '未知SecUid',
+        uniqueId: item.uniqueId || '未知UniqueId',
+        userID: item.userID || '未知用户ID'
+      };
+      return acc;
+    }, {});
+    const replays = Object.assign({}, xhrResponses, { [TabMap.AudienceAllGetUserCard]: { data: indexdbResponses } });
 
     // 生成xlsx文件
     // if (Object.keys(replays).length === 0) {
@@ -151,12 +169,11 @@ import { TabMap, DictDataPK, DictDataAudienceAll, DictDataNewAudience } from './
       return;
     }
     const freplays = Object.keys(replays).reduce((acc, key) => {
-      acc[key] = (replays[key]['data'] || []).map(item => {
-        if (key === TabMap.PK) item = translateObjectKeys(item, DictDataPK);
-        if (key === TabMap.AudienceAll) item = translateObjectKeys(item, DictDataAudienceAll);
-        if (key === TabMap.NewAudience) item = translateObjectKeys(item, DictDataNewAudience);
-        return item;
-      });
+      if (key === TabMap.PK) acc['PK榜'] = translateObjectKeys(replays[key]['data'] || [], DictDataPK, indexdbResponseMap, 'userID');
+      else if (key === TabMap.AudienceAll) acc['观众总榜'] = translateObjectKeys(replays[key]['data'] || [], DictDataAudienceAll, indexdbResponseMap, 'userID');
+      else if (key === TabMap.NewAudience) acc['新观众付费榜'] = translateObjectKeys(replays[key]['data'] || [], DictDataNewAudience, indexdbResponseMap, 'userID');
+      else if (key === TabMap.Guest) acc['连线嘉宾榜'] = translateObjectKeys(replays[key]['data'] || [], DictDataPK, indexdbResponseMap, 'userID');
+      else if (key === TabMap.AudienceAllGetUserCard) acc['观众总榜获取用户卡片'] = translateObjectKeys(replays[key]['data'] || [], DictDataAudienceAllGetUserCardInfo, indexdbResponseMap, 'userID');
       return acc;
     }, {});
     exportMultipleSheetsToExcel(freplays, `抖音直播场次数据_${nickname}_From_${startTime}_To_${endTime}.xlsx`);
@@ -473,19 +490,26 @@ import { TabMap, DictDataPK, DictDataAudienceAll, DictDataNewAudience } from './
     const audienceAllData = xhrResponses[TabMap.AudienceAll].data || [];
     setOperationLog(`观众总榜数据总数: ${audienceAllData.length}，即将进行SecUid和UniqueId的采集，请稍等...`); // prettier-ignore
 
-    // 遍历观众总榜数据，获取SecUid和UniqueId
+    // ##################################################################
+    // ############### 遍历观众总榜数据，获取SecUid和UniqueId ###############
+    // ##################################################################
+
     const total = audienceAllData.length;
-    for (const [item, index] of audienceAllData.entries()) {
+    for (let index = 0; index < total; index++) {
+      const indexLabel = `${index + 1}/${total}`;
+      const item = audienceAllData[index];
       const userID = item['userID'] || '';
       if (!userID) {
-        setOperationLog('【抖音号抓取】未找到用户ID，跳过当前用户');
+        setOperationLog(`未找到用户ID，跳过当前用户`);
         continue;
       }
+
+      setOperationLog(`############### 开始 ${indexLabel}，用户ID ${userID} ###############`, '\n'); // prettier-ignore
 
       // 判断IndexedDB中是否已存在该用户的SecUid和UniqueId
       const exists = await indexdbInstance.hasItem(indexdbStoreUserIDMapSecUidAndUniqueIdName, userID);
       if (exists) {
-        setOperationLog(`【抖音号抓取】用户ID: ${userID} 的SecUid和UniqueId已存在于IndexedDB中，跳过当前用户`);
+        setOperationLog(`用户ID: ${userID} 的SecUid和UniqueId已存在于IndexedDB中，跳过当前用户`);
         continue;
       }
 
@@ -497,44 +521,66 @@ import { TabMap, DictDataPK, DictDataAudienceAll, DictDataNewAudience } from './
       const rsp = await replayRequest(requestBase);
       const responseData = JSON.parse(rsp.body)['data'] || {};
       const baseUrl = responseData['user_base_info']['person_home_page_url'] || '';
-      setOperationLog(`【抖音号抓取】成功回放观众总榜获取用户卡片请求，获取到的用户主页URL: ${baseUrl}`); // prettier-ignore
+      setOperationLog(`成功回放观众总榜获取用户卡片请求，获取到的用户主页URL: ${baseUrl}`); // prettier-ignore
 
       // 请求baseUrl来获取SecUid和UniqueId
-      setOperationLog('【抖音号抓取】开始请求用户主页URL以获取SecUid和UniqueId，请稍等...');
+      setOperationLog('开始请求用户主页URL以获取SecUid和UniqueId，请稍等...');
       const secUidAndUniqueIdRsp = await getRequest(baseUrl);
       const domHtml = secUidAndUniqueIdRsp['body'];
 
-      setOperationLog(`【抖音号抓取】成功获取用户主页HTML内容，长度为: ${domHtml.length}, 即将进行HTML代码解析，请稍等...`); // prettier-ignore
+      setOperationLog(`成功获取用户主页HTML内容，长度为: ${domHtml.length}, 即将进行HTML代码解析，请稍等...`); // prettier-ignore
 
       // 解析HTML内容
       const doc = parseHTML(domHtml);
-      const description = getElementText(doc, '#user_detail_element > div > div.SDJA4Oo6.RsRFV44h.tA_RqgBC.Z6Fyt4lf > div.zI865BLc > p');
-      setOperationLog(`【抖音号抓取】成功获取用户主页的描述信息: ${description}`); // 举例：“抖音号：F0098.IP属地：浙江”
+
+      const followAndStar = getElementText(doc, '#user_detail_element > div > div.SDJA4Oo6.RsRFV44h.tA_RqgBC.Z6Fyt4lf > div.zI865BLc > div.M90xLYkB'); // prettier-ignore
+      const nickname = getElementText(doc, '#user_detail_element > div > div.SDJA4Oo6.RsRFV44h.tA_RqgBC.Z6Fyt4lf > div.zI865BLc > div.qRqKP4qc > h1 > span > span > span > span > span > span'); // prettier-ignore
+      const others = getElementText(doc, '#user_detail_element > div > div.SDJA4Oo6.RsRFV44h.tA_RqgBC.Z6Fyt4lf > div.zI865BLc > p'); // prettier-ignore
+      const uniqueIdStr = getElementText(doc, '#user_detail_element > div > div.SDJA4Oo6.RsRFV44h.tA_RqgBC.Z6Fyt4lf > div.zI865BLc > p > span.NtumbRDj'); // prettier-ignore
+      const locationStr = getElementText(doc, '#user_detail_element > div > div.SDJA4Oo6.RsRFV44h.tA_RqgBC.Z6Fyt4lf > div.zI865BLc > p > span.C2DgpWtn'); // prettier-ignore
+      setOperationLog(`成功获取用户主页的描述信息: ${nickname}, ${uniqueIdStr}, ${locationStr}, ${followAndStar}`); // 举例：“抖音号：F0098”
+
+      const follow = followAndStar.match(/关注(\d+)/)?.[1] || ''; // 从描述中提取关注数
+      const star = followAndStar.match(/粉丝(\d+)/)?.[1] || ''; // 从描述中提取粉丝数
+      const favorited = followAndStar.match(/获赞(\d+)/)?.[1] || ''; // 从描述中提取获赞数 -> '关注120粉丝7472获赞301'
 
       // 举例：https://www.douyin.com/user/MS4wLjABAAAAXCaU01Ka7KaaBf2td0_qLkEIyluxR7xe98XAguwd3JI
       const secUid = baseUrl.split('/')[4] || ''; // 从URL中提取SecUid
-      const uniqueId = description.match(/抖音号：(\w+)/)?.[1] || ''; // 从描述中提取UniqueId
-      const location = description.match(/IP属地：([\u4e00-\u9fa5]+)/)?.[1] || ''; // 从描述中提取IP属地
-      setOperationLog(`【抖音号抓取】成功提取SecUid: ${secUid}`); // prettier-ignore
-      setOperationLog(`【抖音号抓取】成功提取UniqueId: ${uniqueId}, IP属地: ${location}`); // prettier-ignore
+      const uniqueId = uniqueIdStr.match(/抖音号：(\w+)/)?.[1] || ''; // 从描述中提取UniqueId
+      const location = locationStr.match(/IP属地：([\u4e00-\u9fa5]+)/)?.[1] || ''; // 从描述中提取IP属地
+
+      setOperationLog(`成功提取SecUid: ${secUid}`); // prettier-ignore
+      setOperationLog(`成功提取Star: ${followAndStar}`); // prettier-ignore
+      setOperationLog(`成功提取UniqueId: ${uniqueId}, IP属地: ${location}, Others: ${others}`); // prettier-ignore
+
+      if (!secUid || !uniqueId) {
+        setOperationLog(`未找到SecUid或UniqueId，跳过当前用户ID: ${userID}`);
+        continue;
+      }
 
       // 存储数据库
       await indexdbInstance
         .upsertItem(indexdbStoreUserIDMapSecUidAndUniqueIdName, {
+          nickname,
           userID: userID,
           secUid: secUid,
           uniqueId: uniqueId,
           location: location,
-          timestamp: new Date().toISOString()
+          follow: follow,
+          star: star,
+          favorited: favorited,
+          timestamp: new Date().toISOString(),
+          others: others
         })
         .then(() => {
-          setOperationLog(`【抖音号抓取】成功存储SecUid和UniqueId到IndexedDB，SecUid: ${secUid}, UniqueId: ${uniqueId}`); // prettier-ignore
+          setOperationLog(`成功存储SecUid和UniqueId到IndexedDB，SecUid: ${secUid}, UniqueId: ${uniqueId}`); // prettier-ignore
         })
         .catch(error => {
-          setOperationLog(`【抖音号抓取】存储SecUid和UniqueId到IndexedDB失败: ${error.message}`); // prettier-ignore
+          setOperationLog(`存储SecUid和UniqueId到IndexedDB失败: ${error.message}`); // prettier-ignore
         });
 
-      setOperationLog(`${index+1}/${total}【抖音号抓取】用户ID: ${userID} 的SecUid和UniqueId已成功存储到IndexedDB中`); // prettier-ignore
+      setOperationLog(`用户ID: ${userID} 的SecUid和UniqueId已成功存储到IndexedDB中`); // prettier-ignore
+      setOperationLog(`############### 完成 ${indexLabel}，用户ID ${userID} ###############`); // prettier-ignore
 
       // 等待1秒钟以避免请求过快
       await wait(1500);
@@ -618,6 +664,10 @@ import { TabMap, DictDataPK, DictDataAudienceAll, DictDataNewAudience } from './
         isFlagged = true;
         requestData.type = TabMap.AudienceAllGetUserCard;
         setOperationLog(`拦截到请求：观众总榜获取用户卡片请求，${JSON.stringify(requestData)}`); // prettier-ignore
+      } else if (this.__url.includes(urlGetCommonInfo)) {
+        isFlagged = true;
+        requestData.type = TabMap.CommonInfo;
+        setOperationLog(`拦截到请求：公共信息请求，${JSON.stringify(requestData)}`); // prettier-ignore
       } else {
         // 如果不是我们关心的请求，则不进行处理
       }
@@ -744,7 +794,7 @@ import { TabMap, DictDataPK, DictDataAudienceAll, DictDataNewAudience } from './
     const operationRight = document.createElement("div"); // prettier-ignore
 
     operationContainer.id = containerID;
-    operationContainer.style.height = "500px"; // prettier-ignore
+    operationContainer.style.height = "550px"; // prettier-ignore
     operationContainer.style.position = "fixed"; // prettier-ignore
     operationContainer.style.bottom = "50px"; // prettier-ignore
     operationContainer.style.right = "50px"; // prettier-ignore
@@ -769,9 +819,9 @@ import { TabMap, DictDataPK, DictDataAudienceAll, DictDataNewAudience } from './
     const exportNewAudienceButton = createButton("⛐ 采集 - 新观众付费榜", startExportNewAudience); // prettier-ignore
     const exportGuestButton = createButton("⛐ 采集 - 连线嘉宾榜", startExportGuest); // prettier-ignore
     const exportAllButton = createButton("⛐ 一键导出全部数据（不太稳定）", startExportAllField); // prettier-ignore
-    const collectAudienceAllSecUidAndUniqueIdButton = createButton("⛐ 采集 - 观众总榜抖音号", collectAudienceAllSecUidAndUniqueId); // prettier-ignore
-    const downloadButton = createButton("⎋ 下载直播场次导出数据", downloadReplays); // prettier-ignore
-    const debugButton = createButton("⚙️ 调试日志", startDebug); // prettier-ignore
+    const collectAudienceAllSecUidAndUniqueIdButton = createButton("⛐ 采集 - 抖音号清单（观众总榜）", collectAudienceAllSecUidAndUniqueId); // prettier-ignore
+    const downloadButton = createButton("⎋ 下载当前已保存的数据", downloadReplays); // prettier-ignore
+    const debugButton = createButton("⚙️ 导出调试日志", startDebug); // prettier-ignore
 
     collectButton.style = "background-color: #008CBA; color: white; margin-top: 5px; width: 300px; font-size: 16px; cursor: pointer"; // prettier-ignore
     exportPkButton.style = "background-color: #4CAF50; color: white; margin-top: 5px; width: 300px; font-size: 16px; cursor: pointer"; // prettier-ignore
@@ -779,7 +829,7 @@ import { TabMap, DictDataPK, DictDataAudienceAll, DictDataNewAudience } from './
     exportNewAudienceButton.style = "background-color: #4CAF50; color: white; margin-top: 5px; width: 300px; font-size: 16px; cursor: pointer"; // prettier-ignore
     exportGuestButton.style = "background-color: #909399; color: white; margin-top: 5px; width: 300px; font-size: 16px; cursor: pointer"; // prettier-ignore
     exportAllButton.style = "background-color: #909399; color: white; margin-top: 5px; width: 300px; font-size: 16px; cursor: pointer"; // prettier-ignore
-    collectAudienceAllSecUidAndUniqueIdButton.style = "background-color: #008CBA; color: white; margin-top: 5px; width: 300px; font-size: 16px; cursor: pointer"; // prettier-ignore
+    collectAudienceAllSecUidAndUniqueIdButton.style = "background-color: #4CAF50; color: white; margin-top: 5px; width: 300px; font-size: 16px; cursor: pointer"; // prettier-ignore
     downloadButton.style = "background-color: #008CBA; color: white; margin-top: 5px; width: 300px; font-size: 16px; cursor: pointer"; // prettier-ignore
     debugButton.style = "background-color: #E6A23C; color: white; margin-top: 5px; width: 300px; font-size: 16px; cursor: pointer"; // prettier-ignore
 
@@ -791,10 +841,11 @@ import { TabMap, DictDataPK, DictDataAudienceAll, DictDataNewAudience } from './
     operationLeft.appendChild(exportPkButton);
     operationLeft.appendChild(exportAudienceAllButton);
     operationLeft.appendChild(exportNewAudienceButton);
+    operationLeft.appendChild(collectAudienceAllSecUidAndUniqueIdButton);
     operationLeft.appendChild(exportGuestButton);
     operationLeft.appendChild(exportAllButton);
-    operationLeft.appendChild(collectAudienceAllSecUidAndUniqueIdButton);
     operationLeft.appendChild(downloadButton);
+    operationLeft.appendChild(debugButton);
 
     // operationLeft.appendChild(resumeButton);
     // operationLeft.appendChild(stopButton);
@@ -804,12 +855,11 @@ import { TabMap, DictDataPK, DictDataAudienceAll, DictDataNewAudience } from './
     setText('status', 'Running');
     setText('runtimeTime', '0小时 0分钟 0秒');
 
-    statusText.style = "margin-top: 5px; margin-bottom: 0; font-size: 16px; font-weight: bold; background-color: #f0f0f0; padding: 5px; width: 300px;"; // prettier-ignore
-    runtimeTimeText.style = "margin-top: 5px; margin-bottom: 0; font-size: 16px; font-weight: bold; background-color: #f0f0f0; padding: 5px; width: 300px;"; // prettier-ignore
+    statusText.style = "margin: 10px 0 0 0; font-size: 16px; font-weight: bold; background-color: #f0f0f0; padding: 0 5px; width: 300px;"; // prettier-ignore
+    runtimeTimeText.style = "margin: 10px 0 0 0; font-size: 16px; font-weight: bold; background-color: #f0f0f0; padding: 0 5px; width: 300px;"; // prettier-ignore
 
     operationLeft.appendChild(statusText);
     operationLeft.appendChild(runtimeTimeText);
-    operationLeft.appendChild(debugButton);
 
     // ---- 创建日志区域 -----
 
@@ -833,7 +883,7 @@ import { TabMap, DictDataPK, DictDataAudienceAll, DictDataNewAudience } from './
 
     //  设置显示和隐藏按钮的样式
     showContainer.style.position = "fixed"; // prettier-ignore
-    showContainer.style.bottom = "550px"; // prettier-ignore
+    showContainer.style.bottom = "600px"; // prettier-ignore
     showContainer.style.right = "50px"; // prettier-ignore
     showContainer.style.zIndex = "9999"; // prettier-ignore
     showContainer.style.display = "flex"; // prettier-ignore
@@ -876,14 +926,12 @@ import { TabMap, DictDataPK, DictDataAudienceAll, DictDataNewAudience } from './
 
       await indexdbInstance.open();
       await indexdbInstance.upsertItem(indexdbStoreReplayDataName, {
-        id: 'xxx',
-        timestamp: new Date().toISOString(),
-        message: '脚本初始化完成，开始运行'
+        id: '占位空数据',
+        timestamp: new Date().toISOString()
       });
       await indexdbInstance.upsertItem(indexdbStoreUserIDMapSecUidAndUniqueIdName, {
-        userID: 'xxx',
-        timestamp: new Date().toISOString(),
-        message: '脚本初始化完成，开始运行'
+        id: '占位空数据',
+        timestamp: new Date().toISOString()
       });
     } catch (error) {
       setOperationLog(`主函数执行出错: ${error.message}`);
@@ -924,7 +972,7 @@ import { TabMap, DictDataPK, DictDataAudienceAll, DictDataNewAudience } from './
       const hours = Math.floor(elapsedTime / 3600);
       const minutes = Math.floor((elapsedTime % 3600) / 60);
       const seconds = elapsedTime % 60;
-      setText('runtimeTime', `运行时间: ${hours}小时 ${minutes}分钟 ${seconds}秒`);
+      setText('runtimeTime', `${hours}小时 ${minutes}分钟 ${seconds}秒`);
     }
   }, 1000);
 })();

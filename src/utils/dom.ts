@@ -13,6 +13,6 @@ export function parseHTML(html: string): Document {
 
 // 获取元素的文本内容
 export function getElementText(doc: Document, selector: string): string {
-  const element = doc.querySelector(selector);
-  return element ? element.textContent || '' : '';
+  const element = doc.querySelector(selector) as HTMLElement | null;
+  return element ? element.textContent || element.innerText || '' : '';
 }

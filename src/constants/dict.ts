@@ -9,7 +9,8 @@ export const TabMap = {
   AudienceAll: 'Tab_AudienceAll',
   NewAudience: 'Tab_NewAudience',
   Guest: 'Tab_Guest',
-  AudienceAllGetUserCard: 'Tab_AudienceAllGetUserCard'
+  AudienceAllGetUserCard: 'Tab_AudienceAllGetUserCard',
+  CommonInfo: 'Tab_CommonInfo'
 };
 
 // battleID	watchPV	matchUserSource	teamDetail	pkScore	channelID	startTime	endTime	commentPV	followUserPV	feedback	feedbackTag
@@ -72,4 +73,14 @@ export const DictDataNewAudience = {
   fanGroupLevelIcon4: '粉丝团等级图标4',
   fanGroupName: '粉丝团名称',
   fanGroupStatus: '粉丝团状态'
+};
+
+// location secUid timestamp uniqueId userID
+export const DictDataAudienceAllGetUserCardInfo = {
+  nickname: '抖音昵称',
+  secUid: '安全用户ID',
+  uniqueId: '唯一ID（抖音号）',
+  userID: '用户ID（不是抖音号）',
+  location: '位置',
+  timestamp: '采集时间'
 };
