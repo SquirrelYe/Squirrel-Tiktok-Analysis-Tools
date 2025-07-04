@@ -16,7 +16,7 @@ import { downloadTextFile } from './utils/file';
 import { wait } from './utils/tool';
 import { exportMultipleSheetsToExcel } from './utils/xlsx';
 import { triggerMouseEnterWithDelay } from './utils/element';
-import { parseHTML, getElementText } from './utils/dom';
+import { parseHTML, getElementText, getElementsByTagName } from './utils/dom';
 import { IndexedDBUtil } from './utils/indexdb';
 import { TabMap, DictDataPK, DictDataAudienceAll, DictDataNewAudience, DictDataAudienceAllGetUserCardInfo } from './constants/dict';
 
@@ -125,7 +125,7 @@ import { TabMap, DictDataPK, DictDataAudienceAll, DictDataNewAudience, DictDataA
         acc[translatedKey] = obj[key];
         return acc;
       }, {});
-      item['唯一ID（抖音号）'] = uniqueIdMap[obj[mappingKey]]?.['uniqueId'] || '未知抖音号'; // 添加唯一ID（抖音号）
+      if (mappingKey) item['唯一ID（抖音号）'] = uniqueIdMap[obj[mappingKey]]?.['uniqueId'] || '未知抖音号'; // 添加唯一ID（抖音号）
       return item;
     });
   };
@@ -137,8 +137,12 @@ import { TabMap, DictDataPK, DictDataAudienceAll, DictDataNewAudience, DictDataA
     setOperationLog('开始下载直播场次数据，请稍等...');
 
     const nickname = document.querySelector(elNickName)?.textContent || '未知主播';
-    const startTime = document.querySelector(elStartTime)?.textContent || '未知开始时间';
-    const endTime = document.querySelector(elEndTime)?.textContent || '未知结束时间';
+    const startTime = document.querySelector(elStartTime)?.textContent || '未知开始时间'; // 2025-07-03 06_30_44
+    const endTime = document.querySelector(elEndTime)?.textContent || '未知结束时间'; // 2025-07-03 11_48_50
+
+    // 2025-07-03 06_30_44 -> 20250703_063044
+    const fstartTime = startTime.replace(/[-_:\s]/g, '').slice(0, 14).replace(/(\d{8})(\d{6})/, '$1_$2'); // prettier-ignore
+    const fendTime = endTime.replace(/[-_:\s]/g, '').slice(0, 14).replace(/(\d{8})(\d{6})/, '$1_$2'); // prettier-ignore
 
     // 获取数据
     const xhrResponses = GM_getValue(keyXhrResponses, {});
@@ -168,15 +172,22 @@ import { TabMap, DictDataPK, DictDataAudienceAll, DictDataNewAudience, DictDataA
       alert('没有可下载的直播场次数据');
       return;
     }
-    const freplays = Object.keys(replays).reduce((acc, key) => {
-      if (key === TabMap.PK) acc['PK榜'] = translateObjectKeys(replays[key]['data'] || [], DictDataPK, indexdbResponseMap, 'userID');
-      else if (key === TabMap.AudienceAll) acc['观众总榜'] = translateObjectKeys(replays[key]['data'] || [], DictDataAudienceAll, indexdbResponseMap, 'userID');
-      else if (key === TabMap.NewAudience) acc['新观众付费榜'] = translateObjectKeys(replays[key]['data'] || [], DictDataNewAudience, indexdbResponseMap, 'userID');
-      else if (key === TabMap.Guest) acc['连线嘉宾榜'] = translateObjectKeys(replays[key]['data'] || [], DictDataPK, indexdbResponseMap, 'userID');
-      else if (key === TabMap.AudienceAllGetUserCard) acc['观众总榜获取用户卡片'] = translateObjectKeys(replays[key]['data'] || [], DictDataAudienceAllGetUserCardInfo, indexdbResponseMap, 'userID');
+
+    // 汇总需要导出的数据
+    const exportData = {
+      [TabMap.PK]: replays[TabMap.PK] || { data: [] },
+      [TabMap.AudienceAll]: replays[TabMap.AudienceAll] || { data: [] },
+      [TabMap.NewAudience]: replays[TabMap.NewAudience] || { data: [] },
+      [TabMap.Guest]: replays[TabMap.Guest] || { data: [] }
+    };
+    const freplays = Object.keys(exportData).reduce((acc, key) => {
+      if (key === TabMap.PK) acc['PK榜'] = translateObjectKeys(exportData[key]['data'] || [], DictDataPK, {}, '');
+      else if (key === TabMap.AudienceAll) acc['观众总榜'] = translateObjectKeys(exportData[key]['data'] || [], DictDataAudienceAll, indexdbResponseMap, 'userID');
+      else if (key === TabMap.NewAudience) acc['新观众付费榜'] = translateObjectKeys(exportData[key]['data'] || [], DictDataNewAudience, indexdbResponseMap, 'userID');
+      else if (key === TabMap.Guest) acc['连线嘉宾榜'] = translateObjectKeys(exportData[key]['data'] || [], DictDataPK, indexdbResponseMap, 'userID');
       return acc;
     }, {});
-    exportMultipleSheetsToExcel(freplays, `抖音直播场次数据_${nickname}_From_${startTime}_To_${endTime}.xlsx`);
+    exportMultipleSheetsToExcel(freplays, `抖音直播场次数据_${nickname}_From_${fstartTime}_To_${fendTime}.xlsx`);
 
     // saveFile(
     //   new Blob([logContainer.innerText], { type: "text/plain" }),
@@ -185,6 +196,35 @@ import { TabMap, DictDataPK, DictDataAudienceAll, DictDataNewAudience, DictDataA
 
     setOperationLog('直播场次数据已下载，请查看下载的文件');
     alert('直播场次数据已下载，请查看下载的文件');
+  };
+
+  // 下载已收集的粉丝数据
+  const downloadFollowData = async () => {
+    setOperationLog('开始下载已收集的粉丝数据，请稍等...');
+
+    // 获取IndexedDB中的粉丝数据
+    const indexdbResponses = (await indexdbInstance.getAllItems(indexdbStoreUserIDMapSecUidAndUniqueIdName)) || [];
+    if (indexdbResponses.length === 0) {
+      setOperationLog('没有可下载的粉丝数据');
+      alert('没有可下载的粉丝数据');
+      return;
+    }
+
+    // 生成xlsx文件
+    const indexdbResponseMap = indexdbResponses.reduce((acc, item) => {
+      acc[item.userID] = {
+        nickname: item.nickname || '未知昵称',
+        secUid: item.secUid || '未知SecUid',
+        uniqueId: item.uniqueId || '未知UniqueId',
+        userID: item.userID || '未知用户ID'
+      };
+      return acc;
+    }, {});
+    const exportData = translateObjectKeys(indexdbResponses, DictDataAudienceAllGetUserCardInfo, indexdbResponseMap, 'userID');
+    exportMultipleSheetsToExcel({ 已收集的粉丝数据: exportData }, `抖音号清单_${new Date().toISOString()}.xlsx`);
+
+    setOperationLog('已收集的粉丝数据已下载，请查看下载的文件');
+    alert('已收集的粉丝数据已下载，请查看下载的文件');
   };
 
   // ------------------------------ 收集请求操作 ------------------------------
@@ -533,25 +573,50 @@ import { TabMap, DictDataPK, DictDataAudienceAll, DictDataNewAudience, DictDataA
       // 解析HTML内容
       const doc = parseHTML(domHtml);
 
-      const followAndStar = getElementText(doc, '#user_detail_element > div > div.SDJA4Oo6.RsRFV44h.tA_RqgBC.Z6Fyt4lf > div.zI865BLc > div.M90xLYkB'); // prettier-ignore
-      const nickname = getElementText(doc, '#user_detail_element > div > div.SDJA4Oo6.RsRFV44h.tA_RqgBC.Z6Fyt4lf > div.zI865BLc > div.qRqKP4qc > h1 > span > span > span > span > span > span'); // prettier-ignore
-      const others = getElementText(doc, '#user_detail_element > div > div.SDJA4Oo6.RsRFV44h.tA_RqgBC.Z6Fyt4lf > div.zI865BLc > p'); // prettier-ignore
-      const uniqueIdStr = getElementText(doc, '#user_detail_element > div > div.SDJA4Oo6.RsRFV44h.tA_RqgBC.Z6Fyt4lf > div.zI865BLc > p > span.NtumbRDj'); // prettier-ignore
-      const locationStr = getElementText(doc, '#user_detail_element > div > div.SDJA4Oo6.RsRFV44h.tA_RqgBC.Z6Fyt4lf > div.zI865BLc > p > span.C2DgpWtn'); // prettier-ignore
-      setOperationLog(`成功获取用户主页的描述信息: ${nickname}, ${uniqueIdStr}, ${locationStr}, ${followAndStar}`); // 举例：“抖音号：F0098”
+      // 获取所有 script 元素
+      const allScripts = getElementsByTagName(doc, 'script'); // prettier-ignore
+      let targetContent = '';
+      for (const script of allScripts) {
+        if (script.textContent.includes('self.__pace_f.push([1,"8:[')) {
+          targetContent = script.textContent;
+          break;
+        }
+      }
+      setOperationLog(`成功获取用户主页的描述信息: ${targetContent.length}`);
 
-      const follow = followAndStar.match(/关注(\d+)/)?.[1] || ''; // 从描述中提取关注数
-      const star = followAndStar.match(/粉丝(\d+)/)?.[1] || ''; // 从描述中提取粉丝数
-      const favorited = followAndStar.match(/获赞(\d+)/)?.[1] || ''; // 从描述中提取获赞数 -> '关注120粉丝7472获赞301'
+      if (!targetContent) {
+        setOperationLog('未找到目标内容，可能是页面结构发生了变化，请检查代码');
+        continue;
+      }
 
-      // 举例：https://www.douyin.com/user/MS4wLjABAAAAXCaU01Ka7KaaBf2td0_qLkEIyluxR7xe98XAguwd3JI
-      const secUid = baseUrl.split('/')[4] || ''; // 从URL中提取SecUid
-      const uniqueId = uniqueIdStr.match(/抖音号：(\w+)/)?.[1] || ''; // 从描述中提取UniqueId
-      const location = locationStr.match(/IP属地：([\u4e00-\u9fa5]+)/)?.[1] || ''; // 从描述中提取IP属地
+      let rs = targetContent.replace('self.__pace_f.push([1,"8:[\\"$\\",\\"$La\\",null,', '').replace(`]\\n"])`, '');
+      let rs1 = rs.replace(/\\\"/g, '"').replace(/\\'/g, "'").replace(/\\\\/g, '\\').replace(/\\n/g, '').replace(/\\t/g, '');
+      let jsonObject = {};
+
+      try {
+        jsonObject = JSON.parse(rs1);
+      } catch (error) {
+        setOperationLog(`解析JSON失败: ${error.message}`);
+        continue;
+      }
+
+      const { user } = jsonObject['user'] || {};
+
+      const nickname = user['nickname'] || '';
+      const desc = user['desc'] || '';
+      const avatarUrl = user['avatarUrl'] || '';
+      const follow = user['followingCount'] || 0;
+      const star = user['followerCount'] || 0;
+      const favorited = user['totalFavorited'] || 0;
+      const secUid = user['secUid'] || '';
+      const uniqueId = user['uniqueId'] || '';
+      const ipLocation = user['ipLocation'] === '$undefined' ? '' : user['ipLocation'] || ''; // 处理可能的$undefined情况
+      const locationMatch = `${user['country']} ${user['province']} ${user['city']}`;
+      const others = JSON.stringify(user);
 
       setOperationLog(`成功提取SecUid: ${secUid}`); // prettier-ignore
-      setOperationLog(`成功提取Star: ${followAndStar}`); // prettier-ignore
-      setOperationLog(`成功提取UniqueId: ${uniqueId}, IP属地: ${location}, Others: ${others}`); // prettier-ignore
+      setOperationLog(`成功提取Star: ${follow}, Follow: ${star}, Favorited: ${favorited}`); // prettier-ignore
+      setOperationLog(`成功提取UniqueId: ${uniqueId}, IP属地: ${ipLocation}, 位置: ${locationMatch}, 其他信息长度: ${others.length}`);
 
       if (!secUid || !uniqueId) {
         setOperationLog(`未找到SecUid或UniqueId，跳过当前用户ID: ${userID}`);
@@ -561,15 +626,18 @@ import { TabMap, DictDataPK, DictDataAudienceAll, DictDataNewAudience, DictDataA
       // 存储数据库
       await indexdbInstance
         .upsertItem(indexdbStoreUserIDMapSecUidAndUniqueIdName, {
-          nickname,
+          nickname: nickname,
+          desc: desc,
+          avatarUrl: avatarUrl,
           userID: userID,
           secUid: secUid,
           uniqueId: uniqueId,
-          location: location,
+          location: locationMatch,
+          ipLocation: ipLocation,
           follow: follow,
           star: star,
           favorited: favorited,
-          timestamp: new Date().toISOString(),
+          timestamp: new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString(), // prettier-ignore
           others: others
         })
         .then(() => {
@@ -583,7 +651,7 @@ import { TabMap, DictDataPK, DictDataAudienceAll, DictDataNewAudience, DictDataA
       setOperationLog(`############### 完成 ${indexLabel}，用户ID ${userID} ###############`); // prettier-ignore
 
       // 等待1秒钟以避免请求过快
-      await wait(1500);
+      await wait(3000);
     }
   };
 
@@ -820,7 +888,8 @@ import { TabMap, DictDataPK, DictDataAudienceAll, DictDataNewAudience, DictDataA
     const exportGuestButton = createButton("⛐ 采集 - 连线嘉宾榜", startExportGuest); // prettier-ignore
     const exportAllButton = createButton("⛐ 一键导出全部数据（不太稳定）", startExportAllField); // prettier-ignore
     const collectAudienceAllSecUidAndUniqueIdButton = createButton("⛐ 采集 - 抖音号清单（观众总榜）", collectAudienceAllSecUidAndUniqueId); // prettier-ignore
-    const downloadButton = createButton("⎋ 下载当前已保存的数据", downloadReplays); // prettier-ignore
+    const downloadButton = createButton("⎋ 下载当前场次数据", downloadReplays); // prettier-ignore
+    const downloadFollowButton = createButton("⎋ 下载已收集的粉丝数据", downloadFollowData); // prettier-ignore
     const debugButton = createButton("⚙️ 导出调试日志", startDebug); // prettier-ignore
 
     collectButton.style = "background-color: #008CBA; color: white; margin-top: 5px; width: 300px; font-size: 16px; cursor: pointer"; // prettier-ignore
@@ -831,6 +900,7 @@ import { TabMap, DictDataPK, DictDataAudienceAll, DictDataNewAudience, DictDataA
     exportAllButton.style = "background-color: #909399; color: white; margin-top: 5px; width: 300px; font-size: 16px; cursor: pointer"; // prettier-ignore
     collectAudienceAllSecUidAndUniqueIdButton.style = "background-color: #4CAF50; color: white; margin-top: 5px; width: 300px; font-size: 16px; cursor: pointer"; // prettier-ignore
     downloadButton.style = "background-color: #008CBA; color: white; margin-top: 5px; width: 300px; font-size: 16px; cursor: pointer"; // prettier-ignore
+    downloadFollowButton.style = "background-color: #008CBA; color: white; margin-top: 5px; width: 300px; font-size: 16px; cursor: pointer"; // prettier-ignore
     debugButton.style = "background-color: #E6A23C; color: white; margin-top: 5px; width: 300px; font-size: 16px; cursor: pointer"; // prettier-ignore
 
     // exportAudienceAllButton.style = "background-color: #E6A23C; color: white; margin-top: 5px; width: 300px; font-size: 16px; cursor: pointer"; // prettier-ignore
@@ -845,6 +915,7 @@ import { TabMap, DictDataPK, DictDataAudienceAll, DictDataNewAudience, DictDataA
     operationLeft.appendChild(exportGuestButton);
     operationLeft.appendChild(exportAllButton);
     operationLeft.appendChild(downloadButton);
+    operationLeft.appendChild(downloadFollowButton);
     operationLeft.appendChild(debugButton);
 
     // operationLeft.appendChild(resumeButton);

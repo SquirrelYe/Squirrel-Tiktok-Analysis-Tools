@@ -78,9 +78,16 @@ export const DictDataNewAudience = {
 // location secUid timestamp uniqueId userID
 export const DictDataAudienceAllGetUserCardInfo = {
   nickname: '抖音昵称',
+  desc: '抖音简介',
+  avatarUrl: '头像URL',
+  userID: '用户ID（不是抖音号）',
   secUid: '安全用户ID',
   uniqueId: '唯一ID（抖音号）',
-  userID: '用户ID（不是抖音号）',
   location: '位置',
-  timestamp: '采集时间'
+  ipLocation: 'IP属地',
+  follow: '关注数',
+  star: '粉丝数',
+  favorited: '获赞数',
+  timestamp: '采集时间',
+  others: '其他信息（JSON字符串）'
 };

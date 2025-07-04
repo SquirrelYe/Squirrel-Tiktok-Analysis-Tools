@@ -16,3 +16,8 @@ export function getElementText(doc: Document, selector: string): string {
   const element = doc.querySelector(selector) as HTMLElement | null;
   return element ? element.textContent || element.innerText || '' : '';
 }
+
+// 根据TagName获取元素
+export function getElementsByTagName(doc: Document, tagName: string) {
+  return doc.getElementsByTagName(tagName);
+}

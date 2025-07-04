@@ -6,11 +6,11 @@ build({
   outfile: 'app/douyin_live_replay_analyzer.js',
   bundle: true,
   platform: 'browser',
-  target: 'node16',
+  target: 'es2020', // 目标浏览器版本
   sourcemap: true,
   minify: true, // 启用压缩
   charset: 'utf8', // 确保输出为 UTF-8 编码
-  legalComments: 'inline', // 保留所有注释（包括普通注释）
+  legalComments: 'none', // 不保留注释
   keepNames: true // 保留函数和类名
 })
   .then(() => {

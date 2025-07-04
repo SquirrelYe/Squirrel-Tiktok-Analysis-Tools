@@ -1,0 +1,239 @@
+{
+  "user": {
+    "statusCode": 0,
+    "statusMsg": null,
+    "logPb": {
+      "impr_id": "2025070315113359CAB0AB05039307E541"
+    },
+    "user": {
+      "uid": "1687131270429691",
+      "secUid": "MS4wLjABAAAAovXrn2l52SL0oSdBzLd2ibPyxRHO-RqGnvP9c1KwDCQgUpluvffyx9JLia1J6HIJ",
+      "shortId": "0",
+      "realName": "丫丫🌻",
+      "remarkName": "$undefined",
+      "nickname": "丫丫🌻",
+      "desc": "相逢已是上上签  爱好:唱歌🎤瑜伽 旅游\\n心愿:pk把把都超神。\\n直播:中午13:00-15:30晚上22:00-23:30",
+      "descExtra": "$undefined",
+      "gender": 2,
+      "avatarUrl": "https://p3-pc.douyinpic.com/aweme/100x100/aweme-avatar/tos-cn-avt-0015_c458274bef3dd3aef1f159aff478a9a6.jpeg?from=2956013662",
+      "avatar300Url": "https://p3-pc.douyinpic.com/img/aweme-avatar/tos-cn-avt-0015_c458274bef3dd3aef1f159aff478a9a6~c5_300x300.jpeg?from=2956013662",
+      "followStatus": 1,
+      "followerStatus": 0,
+      "awemeCount": 14,
+      "followingCount": 992,
+      "followerCount": 24960,
+      "followerCountStr": "",
+      "mplatformFollowersCount": 24960,
+      "mplatformFollowersCountStr": "$undefined",
+      "favoritingCount": 84,
+      "watchLaterCount": 0,
+      "totalFavorited": 9206,
+      "totalFavoritedStr": "$undefined",
+      "hideTotalFavorited": "$undefined",
+      "userCollectCount": {
+        "logPb": "$undefined",
+        "collectCountList": "$undefined",
+        "statusCode": "$undefined",
+        "extra": "$undefined"
+      },
+      "uniqueId": "41746544349",
+      "customVerify": "",
+      "generalPermission": {
+        "fans_page_toast": 0,
+        "following_follower_list_toast": 1,
+        "is_hit_active_fans_grayed": true
+      },
+      "punishRemindInfo": "$undefined",
+      "age": -1,
+      "birthday": "$undefined",
+      "country": "中国",
+      "province": "广东",
+      "city": "深圳",
+      "district": null,
+      "school": "",
+      "schoolVisible": "$undefined",
+      "enterpriseVerifyReason": "",
+      "secret": 0,
+      "userCanceled": false,
+      "roomData": {
+        "status": 2,
+        "user_count": 138,
+        "stream_url": {
+          "default_resolution": "HD1",
+          "extra": {
+            "height": 1920,
+            "width": 1080
+          },
+          "flv_pull_url": {
+            "FULL_HD1": "http://pull-flv-l6.douyincdn.com/third/stream-405772813572505639_uhd.flv?arch_hrchy=w1\u0026exp_hrchy=w1\u0026k=5f8334b0ae0d7649\u0026major_anchor_level=common\u0026t=1752131493\u0026t_id=037-2025070315113359CAB0AB05039307E541-PLcjcN\u0026unique_id=stream-405772813572505639_39_flv_uhd",
+            "HD1": "http://pull-flv-l6.douyincdn.com/third/stream-405772813572505639_hd.flv?arch_hrchy=w1\u0026exp_hrchy=w1\u0026k=32036de27c9268fd\u0026major_anchor_level=common\u0026t=1752131493\u0026t_id=037-2025070315113359CAB0AB05039307E541-PLcjcN\u0026unique_id=stream-405772813572505639_39_flv_hd",
+            "SD1": "http://pull-flv-l6.douyincdn.com/third/stream-405772813572505639_ld.flv?arch_hrchy=w1\u0026exp_hrchy=w1\u0026k=baa7868f205b5d14\u0026major_anchor_level=common\u0026t=1752131493\u0026t_id=037-2025070315113359CAB0AB05039307E541-PLcjcN\u0026unique_id=stream-405772813572505639_39_flv_ld",
+            "SD2": "http://pull-flv-l6.douyincdn.com/third/stream-405772813572505639_sd.flv?arch_hrchy=w1\u0026exp_hrchy=w1\u0026k=26e6a2dfb4a19dfb\u0026major_anchor_level=common\u0026t=1752131493\u0026t_id=037-2025070315113359CAB0AB05039307E541-PLcjcN\u0026unique_id=stream-405772813572505639_39_flv_sd"
+          },
+          "candidate_resolution": ["SD1", "SD2", "HD1", "FULL_HD1"],
+          "flv_pull_url_params": {
+            "FULL_HD1": "{'VCodec':'h264'}",
+            "HD1": "{'VCodec':'h264'}",
+            "SD1": "{'VCodec':'h264'}",
+            "SD2": "{'VCodec':'h264'}"
+          },
+          "live_core_sdk_data": {
+            "pull_data": {
+              "stream_data": "$b",
+              "options": {
+                "default_quality": {
+                  "name": "超清",
+                  "sdk_key": "hd"
+                },
+                "qualities": [
+                  {
+                    "name": "标清",
+                    "sdk_key": "ld",
+                    "v_codec": "264",
+                    "resolution": "540x960",
+                    "level": 1,
+                    "v_bit_rate": 1000000,
+                    "fps": 25
+                  },
+                  {
+                    "name": "高清",
+                    "sdk_key": "sd",
+                    "v_codec": "264",
+                    "resolution": "720x1280",
+                    "level": 2,
+                    "v_bit_rate": 2000000,
+                    "fps": 30
+                  },
+                  {
+                    "name": "超清",
+                    "sdk_key": "hd",
+                    "v_codec": "264",
+                    "resolution": "720x1280",
+                    "level": 3,
+                    "v_bit_rate": 4000000,
+                    "fps": 30
+                  },
+                  {
+                    "name": "蓝光",
+                    "sdk_key": "uhd",
+                    "v_codec": "264",
+                    "resolution": "1080x1920",
+                    "level": 4,
+                    "v_bit_rate": 8606000,
+                    "fps": 45
+                  },
+                  {
+                    "name": "原画",
+                    "sdk_key": "origin",
+                    "v_codec": "264",
+                    "resolution": "1080x1920",
+                    "level": 5,
+                    "v_bit_rate": 8606000
+                  }
+                ]
+              }
+            }
+          },
+          "stream_orientation": 1,
+          "play": {
+            "horizontal": "main",
+            "vertical": "main"
+          }
+        },
+        "owner": {
+          "web_rid": "744704260361"
+        },
+        "live_type_third_party": true,
+        "live_room_mode": 1,
+        "paid_live_data": {
+          "pay_ab_type": 1
+        },
+        "ecom_data": {
+          "room_cart_v2": {
+            "show_cart": 2
+          }
+        },
+        "pack_meta": {
+          "scene": "pc_profile_struct(prod_single_dc/rpc/topo)",
+          "env": "prod",
+          "dc": "lq",
+          "cluster": "feed"
+        }
+      },
+      "shareQrcodeUrl": "",
+      "shareInfo": {
+        "boolPersist": 1,
+        "shareDesc": "长按复制此条消息，打开抖音搜索，查看TA的更多作品。",
+        "shareImageUrl": {
+          "uri": "tos-cn-p-0015/oMAVGeo1GByQLf9BjfI37HgzvCEgSIAAWE7VaA",
+          "url_list": [
+            "https://p3-pc-sign.douyinpic.com/obj/tos-cn-p-0015/oMAVGeo1GByQLf9BjfI37HgzvCEgSIAAWE7VaA?lk3s=93de098e\u0026x-expires=1751698800\u0026x-signature=t90Q2NoEEq4F%2FVXCtOkgQY3JCHg%3D\u0026from=2480802190",
+            "https://p9-pc-sign.douyinpic.com/obj/tos-cn-p-0015/oMAVGeo1GByQLf9BjfI37HgzvCEgSIAAWE7VaA?lk3s=93de098e\u0026x-expires=1751698800\u0026x-signature=wIqGUkgxjTV7Wl72C%2BV5MtMPw98%3D\u0026from=2480802190"
+          ]
+        },
+        "shareQrcodeUrl": {
+          "uri": "",
+          "url_list": []
+        },
+        "shareUrl": "www.iesdouyin.com/share/user/MS4wLjABAAAAovXrn2l52SL0oSdBzLd2ibPyxRHO-RqGnvP9c1KwDCQgUpluvffyx9JLia1J6HIJ?did=MS4wLjABAAAAXo5jn36HJL_w9djwnEoS1VkTMik3c8Sf-_nBtPeRsG8bShVmVa6MaZH49lDPAHww\u0026iid=MS4wLjABAAAANwkJuWIRFOzg5uCpDRpMj4OX-QryoDgn-yYlXQnRwQQ\u0026with_sec_did=1\u0026sec_uid=MS4wLjABAAAAovXrn2l52SL0oSdBzLd2ibPyxRHO-RqGnvP9c1KwDCQgUpluvffyx9JLia1J6HIJ\u0026from_ssr=1\u0026from_aid=6383\u0026u_code=113a1kaie",
+        "shareWeiboDesc": "长按复制此条消息，打开抖音搜索，查看TA的更多作品。"
+      },
+      "coverAndHeadImageInfo": {
+        "profileCoverList": [
+          {
+            "coverUrl": {
+              "uri": "douyin-user-image-file/9c5e23694dae702675852e59678ffdbe",
+              "urlList": [
+                "https://p3-pc-sign.douyinpic.com/obj/douyin-user-image-file/9c5e23694dae702675852e59678ffdbe?lk3s=93de098e\u0026x-expires=1751698800\u0026x-signature=Bm0JAiT9DgTZkWeeKQwigeZzk%2Fs%3D\u0026from=2480802190",
+                "https://p9-pc-sign.douyinpic.com/obj/douyin-user-image-file/9c5e23694dae702675852e59678ffdbe?lk3s=93de098e\u0026x-expires=1751698800\u0026x-signature=XlTUJrGx97JRYelp0SnUr6kVrMQ%3D\u0026from=2480802190"
+              ]
+            },
+            "darkCoverColor": "#FFebc7b7",
+            "lightCoverColor": "#FFebc7b7"
+          }
+        ]
+      },
+      "roomId": 7522715972260679000,
+      "isBlocked": false,
+      "isBlock": false,
+      "isBan": false,
+      "favoritePermission": 1,
+      "showFavoriteList": false,
+      "viewHistoryPermission": false,
+      "ipLocation": "IP属地：湖北",
+      "isNotShowBaseTag": "$undefined",
+      "isGovMediaVip": false,
+      "isStar": false,
+      "hideLocation": "$undefined",
+      "needSpecialShowFollowerCount": false,
+      "isNotShow": false,
+      "avatarAuditing": "$undefined",
+      "continuationState": 0,
+      "im_role_ids": [8, 19, 9],
+      "roomIdStr": "7522715972260678442",
+      "close_consecutive_chat": "$undefined",
+      "accountCertInfo": {
+        "labelStyle": "$undefined",
+        "labelText": "$undefined",
+        "isBizAccount": "$undefined"
+      },
+      "profileRecordParams": "$c",
+      "profileRankLabel": null,
+      "isOverFollower": false
+    }
+  },
+  "statusCode": 0,
+  "mix": null,
+  "series": null,
+  "post": null,
+  "uid": "MS4wLjABAAAAovXrn2l52SL0oSdBzLd2ibPyxRHO-RqGnvP9c1KwDCQgUpluvffyx9JLia1J6HIJ",
+  "isHideImpInfo": true,
+  "isClient": false,
+  "osInfo": {
+    "os": "Mac",
+    "version": "",
+    "isMas": false
+  },
+  "isSpider": false,
+  "redirectFrom": "$undefined"
+}
